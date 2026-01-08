@@ -16,13 +16,6 @@ animate();
 
 function init() {
     container = document.createElement('div');
-    container.style.position = 'absolute';
-    container.style.top = '0';
-    container.style.left = '0';
-    container.style.width = '100%';
-    container.style.height = '100%';
-    // 【修正】コンテナ自体はタッチを無視し、後ろ（AR世界）や子要素（ボタン）に通す
-    container.style.pointerEvents = 'none'; 
     document.body.appendChild(container);
 
     // シーン設定
@@ -41,30 +34,22 @@ function init() {
     renderer.setPixelRatio(window.devicePixelRatio);
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.xr.enabled = true;
-    
-    // 【修正】レンダラー（Canvas）もタッチを無視する設定（DOM Overlayを使うなら安全策としてOK）
-    renderer.domElement.style.position = 'absolute';
-    renderer.domElement.style.top = '0';
-    renderer.domElement.style.left = '0';
-    renderer.domElement.style.pointerEvents = 'none'; 
-    
     container.appendChild(renderer.domElement);
 
-    // 【重要修正】ARボタンの設定に 'dom-overlay' を追加
-    // これがないとスマホでUI（スライダー）が表示されません
+    // 【重要】UIを表示させるためにDOM Overlayを確実に設定
+    // document.body をルートに設定することで、HTML全体をARの上に表示させる
     arButton = ARButton.createButton(renderer, { 
         requiredFeatures: ['hit-test'],
         optionalFeatures: ['dom-overlay'], 
         domOverlay: { root: document.body } 
     });
-    
-    arButton.style.pointerEvents = 'auto'; // ボタンは押せるようにする
     document.body.appendChild(arButton);
-    
+
     // イベントリスナー
     renderer.xr.addEventListener('sessionstart', onARSessionStart);
     renderer.xr.addEventListener('sessionend', onARSessionEnd);
 
+    // 箱とカーソルを作成
     createBox();
 
     reticle = new THREE.Mesh(
@@ -81,19 +66,19 @@ function init() {
 
     window.addEventListener('resize', onWindowResize);
     
-    const widthSlider = document.getElementById('widthSlider');
-    const heightSlider = document.getElementById('heightSlider');
-    const depthSlider = document.getElementById('depthSlider');
-
-    // 【念のため修正】スライダーが存在しない場合のエラーを防ぐ
-    if(widthSlider) widthSlider.addEventListener('input', updateBoxSize);
-    if(heightSlider) heightSlider.addEventListener('input', updateBoxSize);
-    if(depthSlider) depthSlider.addEventListener('input', updateBoxSize);
+    // スライダー操作のイベント
+    const wSlider = document.getElementById('widthSlider');
+    const hSlider = document.getElementById('heightSlider');
+    const dSlider = document.getElementById('depthSlider');
+    
+    if(wSlider) wSlider.addEventListener('input', updateBoxSize);
+    if(hSlider) hSlider.addEventListener('input', updateBoxSize);
+    if(dSlider) dSlider.addEventListener('input', updateBoxSize);
 }
 
 function createBox() {
     const geometry = new THREE.BoxGeometry(1, 1, 1);
-    geometry.translate(0, 0.5, 0);
+    geometry.translate(0, 0.5, 0); // 底面基準
 
     const material = new THREE.MeshPhongMaterial({ 
         color: 0x00aaff, 
@@ -112,12 +97,22 @@ function createBox() {
 
 function onSelect() {
     if (reticle.visible) {
-        // isPlacedの判定に関わらず、タップした場所に移動させる（再配置機能）
+        // カーソル位置に箱を移動
         boxMesh.position.setFromMatrixPosition(reticle.matrix);
         
+        // まだ置いていなければシーンに追加
         if (!isPlaced) {
             scene.add(boxMesh);
             isPlaced = true;
+            
+            // 【修正】置いた瞬間にカーソルを強制的に消す
+            reticle.visible = false;
+        }
+
+        // 【修正】UI表示を確実に行う
+        const overlay = document.getElementById('overlay');
+        if (overlay) {
+            overlay.style.display = 'flex';
         }
     }
 }
@@ -125,16 +120,9 @@ function onSelect() {
 function updateBoxSize() {
     if(!boxMesh) return;
 
-    // UI要素が取得できない場合のガードを入れる
-    const wSlider = document.getElementById('widthSlider');
-    const hSlider = document.getElementById('heightSlider');
-    const dSlider = document.getElementById('depthSlider');
-    
-    if(!wSlider || !hSlider || !dSlider) return;
-
-    const w = wSlider.value;
-    const h = hSlider.value;
-    const d = dSlider.value;
+    const w = document.getElementById('widthSlider').value;
+    const h = document.getElementById('heightSlider').value;
+    const d = document.getElementById('depthSlider').value;
 
     const info = document.getElementById('info');
     if(info) info.innerText = `サイズ: ${w} x ${h} x ${d} cm`;
@@ -149,28 +137,26 @@ function onWindowResize() {
 }
 
 function onARSessionStart() {
-    console.log('AR Start');
-    // オーバーレイ（UI）を表示
+    // AR開始時にUIオーバーレイを非表示のまま準備（配置後に表示するため）
     const overlay = document.getElementById('overlay');
-    if(overlay) {
-        overlay.style.display = 'flex';
-        // 【重要】UIがタップできるように pointer-events を復帰させる
-        // ただしスライダーなどの操作部分のみ反応させたい場合、CSS側で制御するが
-        // ここでは親要素を表示するだけでOK。
-    }
+    if(overlay) overlay.style.display = 'none';
 }
 
 function onARSessionEnd() {
-    console.log('AR End');
+    // AR終了時はUIを隠す
     const overlay = document.getElementById('overlay');
     if(overlay) overlay.style.display = 'none';
     
+    // 【修正】終了時にカーソルと箱を非表示にする（残像対策）
+    reticle.visible = false;
     isPlaced = false;
+    
+    // ヒットテストのリセット
     hitTestSourceRequested = false;
     hitTestSource = null;
     
-    // 箱をシーンから消す（リセット）
-    if(boxMesh.parent) scene.remove(boxMesh);
+    // 箱をシーンから除去
+    scene.remove(boxMesh);
 }
 
 function animate() {
@@ -197,11 +183,14 @@ function render(timestamp, frame) {
 
         if (hitTestSource) {
             const hitTestResults = frame.getHitTestResults(hitTestSource);
-            if (hitTestResults.length > 0) {
+
+            // 【修正】「床が見つかった」かつ「まだ箱を置いていない」時だけカーソルを出す
+            if (hitTestResults.length > 0 && !isPlaced) {
                 const hit = hitTestResults[0];
                 reticle.visible = true;
                 reticle.matrix.fromArray(hit.getPose(referenceSpace).transform.matrix);
             } else {
+                // それ以外（床がない、または既に箱を置いた）は隠す
                 reticle.visible = false;
             }
         }
