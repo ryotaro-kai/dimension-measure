@@ -9,6 +9,7 @@ let boxMesh; // 計測用の箱
 let hitTestSource = null;
 let hitTestSourceRequested = false;
 let isPlaced = false; // 箱を置いたかどうかのフラグ
+let arButton = null; // ARボタンへの参照
 
 init();
 animate();
@@ -49,7 +50,13 @@ function init() {
 
     // ARボタンを追加
     // requiredFeatures: 'hit-test' が重要（床検知に必要）
-    document.body.appendChild(ARButton.createButton(renderer, { requiredFeatures: ['hit-test'] }));
+    arButton = ARButton.createButton(renderer, { requiredFeatures: ['hit-test'] });
+    arButton.style.pointerEvents = 'auto'; // ARボタン自身は操作可能
+    document.body.appendChild(arButton);
+    
+    // AR セッション開始時のイベント処理
+    renderer.xr.addEventListener('sessionstart', onARSessionStart);
+    renderer.xr.addEventListener('sessionend', onARSessionEnd);
 
     // 計測用の箱を作成（初期状態ではシーンに追加しない）
     createBox();
@@ -141,7 +148,31 @@ function onWindowResize() {
     renderer.setSize(window.innerWidth, window.innerHeight);
 }
 
-// レンダリングループ
+// AR セッション開始時の処理
+function onARSessionStart() {
+    console.log('AR セッション開始');
+    // ARボタンを非表示にし、UI を表示
+    if(arButton) arButton.style.display = 'none';
+    
+    // UI（スライダー）をすぐ表示
+    const overlay = document.getElementById('overlay');
+    if(overlay) overlay.style.display = 'flex';
+}
+
+// AR セッション終了時の処理
+function onARSessionEnd() {
+    console.log('AR セッション終了');
+    // ARボタンを表示、UI を非表示
+    if(arButton) arButton.style.display = 'block';
+    
+    const overlay = document.getElementById('overlay');
+    if(overlay) overlay.style.display = 'none';
+    
+    // フラグをリセット
+    isPlaced = false;
+    hitTestSourceRequested = false;
+    hitTestSource = null;
+}// レンダリングループ
 function animate() {
     renderer.setAnimationLoop(render);
 }
@@ -158,23 +189,7 @@ function render(timestamp, frame) {
                     hitTestSource = source;
                 });
             });
-            session.addEventListener('end', function () {
-                hitTestSourceRequested = false;
-                hitTestSource = null;
-                const overlay = document.getElementById('overlay');
-                if(overlay) overlay.style.display = 'none'; // 終了時にUI消す
-                isPlaced = false; // セッション終了時にリセット
-            });
             hitTestSourceRequested = true;
-            
-            // AR セッション開始時に、すぐ次のフレームでUIを表示
-            setTimeout(() => {
-                if (!isPlaced) {
-                    const overlay = document.getElementById('overlay');
-                    if(overlay) overlay.style.display = 'flex';
-                    isPlaced = true;
-                }
-            }, 500);
         }
 
         // ヒットテスト実行（床検知）
