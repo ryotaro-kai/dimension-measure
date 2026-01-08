@@ -105,18 +105,17 @@ function createBox() {
 
 // 画面タップ時の処理
 function onSelect() {
-    if (reticle.visible && !isPlaced) {
-        // カーソルの位置に箱を置く
+    if (reticle.visible && isPlaced) {
+        // カーソルの位置に箱を配置しなおす
+        boxMesh.position.setFromMatrixPosition(reticle.matrix);
+        if (boxMesh.parent !== scene) {
+            scene.add(boxMesh);
+        }
+    } else if (reticle.visible && !isPlaced) {
+        // 初回タップ：カーソルの位置に箱を置く
         boxMesh.position.setFromMatrixPosition(reticle.matrix);
         scene.add(boxMesh);
-        
-        // フラグ更新
         isPlaced = true;
-        reticle.visible = false; // カーソルを消す
-
-        // UI（スライダー）を表示
-        const overlay = document.getElementById('overlay');
-        if(overlay) overlay.style.display = 'flex';
     }
 }
 
@@ -164,15 +163,25 @@ function render(timestamp, frame) {
                 hitTestSource = null;
                 const overlay = document.getElementById('overlay');
                 if(overlay) overlay.style.display = 'none'; // 終了時にUI消す
+                isPlaced = false; // セッション終了時にリセット
             });
             hitTestSourceRequested = true;
+            
+            // AR セッション開始時に、すぐ次のフレームでUIを表示
+            setTimeout(() => {
+                if (!isPlaced) {
+                    const overlay = document.getElementById('overlay');
+                    if(overlay) overlay.style.display = 'flex';
+                    isPlaced = true;
+                }
+            }, 500);
         }
 
         // ヒットテスト実行（床検知）
         if (hitTestSource) {
             const hitTestResults = frame.getHitTestResults(hitTestSource);
 
-            if (hitTestResults.length > 0 && !isPlaced) {
+            if (hitTestResults.length > 0) {
                 const hit = hitTestResults[0];
                 reticle.visible = true;
                 reticle.matrix.fromArray(hit.getPose(referenceSpace).transform.matrix);

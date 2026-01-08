@@ -15,35 +15,50 @@
         /* UIオーバーレイのスタイル */
         #overlay {
             position: absolute;
-            bottom: 20px;
-            left: 0;
-            width: 100%;
-            background: rgba(0, 0, 0, 0.6);
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 90%;
+            max-width: 500px;
+            background: rgba(0, 0, 0, 0.8);
             color: white;
-            padding: 15px 0;
+            padding: 30px;
             display: none; /* 最初は非表示 */
             flex-direction: column;
             align-items: center;
-            border-radius: 20px 20px 0 0;
+            border-radius: 20px;
             z-index: 10; /* Canvasより手前に表示 */
         }
         .slider-container {
-            width: 80%;
-            margin: 5px 0;
+            width: 100%;
+            margin: 15px 0 0 0;
             display: flex;
             align-items: center;
             justify-content: space-between;
+            gap: 15px;
         }
-        input[type=range] { flex-grow: 1; margin: 0 10px; }
-        #info { text-align: center; margin-bottom: 10px; font-weight: bold; }
-        button {
-            padding: 10px 20px;
-            border: 1px solid white;
-            background: transparent;
-            color: white;
-            border-radius: 4px;
+        input[type=range] { 
+            flex-grow: 1; 
+            accent-color: #00aaff;
+            height: 8px;
             cursor: pointer;
-            margin-top: 10px;
+        }
+        #info { text-align: center; margin-bottom: 20px; font-weight: bold; font-size: 18px; }
+        button {
+            padding: 12px 30px;
+            border: 2px solid #00aaff;
+            background: transparent;
+            color: #00aaff;
+            border-radius: 8px;
+            cursor: pointer;
+            margin-top: 20px;
+            font-size: 16px;
+            font-weight: bold;
+            transition: all 0.2s;
+        }
+        button:hover {
+            background: #00aaff;
+            color: #000;
         }
     </style>
 </head>
