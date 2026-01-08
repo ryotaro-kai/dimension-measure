@@ -1,96 +1,26 @@
-<!DOCTYPE html>
-<html lang="ja">
-<head>
-    <meta charset="UTF-8">
-    <title>AR Box Measure</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <style>
-        body {
-            margin: 0;
-            overflow:hidden;
-            font-family: sans-serif;
-            background: #000;
-            color: #fff;
-        }
-        /* UIオーバーレイのスタイル */
-        #overlay {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            width: 90%;
-            max-width: 500px;
-            background: rgba(0, 0, 0, 0.8);
-            color: white;
-            padding: 30px;
-            display: none; /* 最初は非表示 */
-            flex-direction: column;
-            align-items: center;
-            border-radius: 20px;
-            z-index: 10; /* Canvasより手前に表示 */
-        }
-        .slider-container {
-            width: 100%;
-            margin: 15px 0 0 0;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 15px;
-        }
-        input[type=range] { 
-            flex-grow: 1; 
-            accent-color: #00aaff;
-            height: 8px;
-            cursor: pointer;
-        }
-        #info { text-align: center; margin-bottom: 20px; font-weight: bold; font-size: 18px; }
-        button {
-            padding: 12px 30px;
-            border: 2px solid #00aaff;
-            background: transparent;
-            color: #00aaff;
-            border-radius: 8px;
-            cursor: pointer;
-            margin-top: 20px;
-            font-size: 16px;
-            font-weight: bold;
-            transition: all 0.2s;
-        }
-        button:hover {
-            background: #00aaff;
-            color: #000;
-        }
-    </style>
-</head>
-<body>
+<style>
+    /* ...省略... */
 
-<div id="overlay">
-    <div id="info">サイズ: 30 x 30 x 30 cm</div>
-    <div class="slider-container">
-        <span>幅</span>
-        <input type="range" id="widthSlider" min="5" max="100" value="30">
-    </div>
-    <div class="slider-container">
-        <span>高</span>
-        <input type="range" id="heightSlider" min="5" max="100" value="30">
-    </div>
-    <div class="slider-container">
-        <span>奥</span>
-        <input type="range" id="depthSlider" min="5" max="100" value="30">
-    </div>
-    <button onclick="location.reload()">リセット</button>
-</div>
-
-<script type="importmap">
-  {
-    "imports": {
-      "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
-      "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+    /* UIオーバーレイのスタイル */
+    #overlay {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 90%;
+        max-width: 500px;
+        background: rgba(0, 0, 0, 0.8);
+        color: white;
+        padding: 30px;
+        display: none; 
+        flex-direction: column;
+        align-items: center;
+        border-radius: 20px;
+        z-index: 10; 
+        
+        /* ▼▼▼ これを追加してください ▼▼▼ */
+        pointer-events: auto; 
     }
-  }
-</script>
 
-<script type="module" src="./script.js"></script>
-
-</body>
-</html>
+    /* ...省略... */
+</style>

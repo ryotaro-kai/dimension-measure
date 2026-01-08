@@ -4,12 +4,12 @@ import { ARButton } from 'three/addons/webxr/ARButton.js';
 let container;
 let camera, scene, renderer;
 let controller;
-let reticle; // 床認識カーソル
-let boxMesh; // 計測用の箱
+let reticle;
+let boxMesh;
 let hitTestSource = null;
 let hitTestSourceRequested = false;
-let isPlaced = false; // 箱を置いたかどうかのフラグ
-let arButton = null; // ARボタンへの参照
+let isPlaced = false;
+let arButton = null;
 
 init();
 animate();
@@ -21,6 +21,8 @@ function init() {
     container.style.left = '0';
     container.style.width = '100%';
     container.style.height = '100%';
+    // 【修正】コンテナ自体はタッチを無視し、後ろ（AR世界）や子要素（ボタン）に通す
+    container.style.pointerEvents = 'none'; 
     document.body.appendChild(container);
 
     // シーン設定
@@ -38,30 +40,33 @@ function init() {
     renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     renderer.setPixelRatio(window.devicePixelRatio);
     renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.xr.enabled = true; // WebXR有効化
+    renderer.xr.enabled = true;
     
-    // Canvas要素にスタイルを設定（ポインターイベントを下に透過させる）
+    // 【修正】レンダラー（Canvas）もタッチを無視する設定（DOM Overlayを使うなら安全策としてOK）
     renderer.domElement.style.position = 'absolute';
     renderer.domElement.style.top = '0';
     renderer.domElement.style.left = '0';
-    renderer.domElement.style.pointerEvents = 'none'; // ポインターイベントを無視
+    renderer.domElement.style.pointerEvents = 'none'; 
     
     container.appendChild(renderer.domElement);
 
-    // ARボタンを追加
-    // requiredFeatures: 'hit-test' が重要（床検知に必要）
-    arButton = ARButton.createButton(renderer, { requiredFeatures: ['hit-test'] });
-    arButton.style.pointerEvents = 'auto'; // ARボタン自身は操作可能
+    // 【重要修正】ARボタンの設定に 'dom-overlay' を追加
+    // これがないとスマホでUI（スライダー）が表示されません
+    arButton = ARButton.createButton(renderer, { 
+        requiredFeatures: ['hit-test'],
+        optionalFeatures: ['dom-overlay'], 
+        domOverlay: { root: document.body } 
+    });
+    
+    arButton.style.pointerEvents = 'auto'; // ボタンは押せるようにする
     document.body.appendChild(arButton);
     
-    // AR セッション開始時のイベント処理
+    // イベントリスナー
     renderer.xr.addEventListener('sessionstart', onARSessionStart);
     renderer.xr.addEventListener('sessionend', onARSessionEnd);
 
-    // 計測用の箱を作成（初期状態ではシーンに追加しない）
     createBox();
 
-    // レティクル（床検知カーソル）の作成
     reticle = new THREE.Mesh(
         new THREE.RingGeometry(0.15, 0.2, 32).rotateX(-Math.PI / 2),
         new THREE.MeshBasicMaterial()
@@ -70,27 +75,24 @@ function init() {
     reticle.visible = false;
     scene.add(reticle);
 
-    // タップイベント（コントローラー）
     controller = renderer.xr.getController(0);
     controller.addEventListener('select', onSelect);
     scene.add(controller);
 
     window.addEventListener('resize', onWindowResize);
     
-    // スライダーのイベント設定
     const widthSlider = document.getElementById('widthSlider');
     const heightSlider = document.getElementById('heightSlider');
     const depthSlider = document.getElementById('depthSlider');
 
+    // 【念のため修正】スライダーが存在しない場合のエラーを防ぐ
     if(widthSlider) widthSlider.addEventListener('input', updateBoxSize);
     if(heightSlider) heightSlider.addEventListener('input', updateBoxSize);
     if(depthSlider) depthSlider.addEventListener('input', updateBoxSize);
 }
 
-// 箱のオブジェクトを作る関数
 function createBox() {
     const geometry = new THREE.BoxGeometry(1, 1, 1);
-    // 【重要】底面を基準にするためYを0.5ずらす
     geometry.translate(0, 0.5, 0);
 
     const material = new THREE.MeshPhongMaterial({ 
@@ -101,44 +103,42 @@ function createBox() {
     
     boxMesh = new THREE.Mesh(geometry, material);
     
-    // ワイヤーフレーム（枠線）追加
     const edges = new THREE.EdgesGeometry(geometry);
     const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0xffffff }));
     boxMesh.add(line);
     
-    // 初期サイズ適用 (30cm)
     boxMesh.scale.set(0.3, 0.3, 0.3);
 }
 
-// 画面タップ時の処理
 function onSelect() {
-    if (reticle.visible && isPlaced) {
-        // カーソルの位置に箱を配置しなおす
+    if (reticle.visible) {
+        // isPlacedの判定に関わらず、タップした場所に移動させる（再配置機能）
         boxMesh.position.setFromMatrixPosition(reticle.matrix);
-        if (boxMesh.parent !== scene) {
+        
+        if (!isPlaced) {
             scene.add(boxMesh);
+            isPlaced = true;
         }
-    } else if (reticle.visible && !isPlaced) {
-        // 初回タップ：カーソルの位置に箱を置く
-        boxMesh.position.setFromMatrixPosition(reticle.matrix);
-        scene.add(boxMesh);
-        isPlaced = true;
     }
 }
 
-// スライダーで箱のサイズを変える処理
 function updateBoxSize() {
     if(!boxMesh) return;
 
-    const w = document.getElementById('widthSlider').value;
-    const h = document.getElementById('heightSlider').value;
-    const d = document.getElementById('depthSlider').value;
+    // UI要素が取得できない場合のガードを入れる
+    const wSlider = document.getElementById('widthSlider');
+    const hSlider = document.getElementById('heightSlider');
+    const dSlider = document.getElementById('depthSlider');
+    
+    if(!wSlider || !hSlider || !dSlider) return;
 
-    // テキスト更新
+    const w = wSlider.value;
+    const h = hSlider.value;
+    const d = dSlider.value;
+
     const info = document.getElementById('info');
     if(info) info.innerText = `サイズ: ${w} x ${h} x ${d} cm`;
 
-    // 3Dモデル更新 (cm -> m)
     boxMesh.scale.set(w * 0.01, h * 0.01, d * 0.01);
 }
 
@@ -148,31 +148,31 @@ function onWindowResize() {
     renderer.setSize(window.innerWidth, window.innerHeight);
 }
 
-// AR セッション開始時の処理
 function onARSessionStart() {
-    console.log('AR セッション開始');
-    // ARボタンを非表示にし、UI を表示
-    if(arButton) arButton.style.display = 'none';
-    
-    // UI（スライダー）をすぐ表示
+    console.log('AR Start');
+    // オーバーレイ（UI）を表示
     const overlay = document.getElementById('overlay');
-    if(overlay) overlay.style.display = 'flex';
+    if(overlay) {
+        overlay.style.display = 'flex';
+        // 【重要】UIがタップできるように pointer-events を復帰させる
+        // ただしスライダーなどの操作部分のみ反応させたい場合、CSS側で制御するが
+        // ここでは親要素を表示するだけでOK。
+    }
 }
 
-// AR セッション終了時の処理
 function onARSessionEnd() {
-    console.log('AR セッション終了');
-    // ARボタンを表示、UI を非表示
-    if(arButton) arButton.style.display = 'block';
-    
+    console.log('AR End');
     const overlay = document.getElementById('overlay');
     if(overlay) overlay.style.display = 'none';
     
-    // フラグをリセット
     isPlaced = false;
     hitTestSourceRequested = false;
     hitTestSource = null;
-}// レンダリングループ
+    
+    // 箱をシーンから消す（リセット）
+    if(boxMesh.parent) scene.remove(boxMesh);
+}
+
 function animate() {
     renderer.setAnimationLoop(render);
 }
@@ -182,20 +182,21 @@ function render(timestamp, frame) {
         const referenceSpace = renderer.xr.getReferenceSpace();
         const session = renderer.xr.getSession();
 
-        // ヒットテストの初期化（初回のみ）
         if (hitTestSourceRequested === false) {
             session.requestReferenceSpace('viewer').then(function (referenceSpace) {
                 session.requestHitTestSource({ space: referenceSpace }).then(function (source) {
                     hitTestSource = source;
                 });
             });
+            session.addEventListener('end', function () {
+                hitTestSourceRequested = false;
+                hitTestSource = null;
+            });
             hitTestSourceRequested = true;
         }
 
-        // ヒットテスト実行（床検知）
         if (hitTestSource) {
             const hitTestResults = frame.getHitTestResults(hitTestSource);
-
             if (hitTestResults.length > 0) {
                 const hit = hitTestResults[0];
                 reticle.visible = true;
